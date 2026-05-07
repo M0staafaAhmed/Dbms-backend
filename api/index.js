@@ -317,16 +317,33 @@ async function syncBranch(branchDB, nodeID) {
     }
 }
 
-async function startSync() {
-    console.log("🔄 Starting synchronization...");
-    await syncBranch(cairoDB, 1); // استنى لما كايرو تخلص
-    await syncBranch(alexDB, 2);  // بعدين ابدأ في أليكس
-    console.log("✅ All nodes synced.");
+app.get("/api/sync", async (req, res) => {
+    // تأمين الـ Route: بنشيك على الـ Secret Key في الـ Headers أو الـ Query
+    const secret = req.query.secret;
+    
+    if (secret !== process.env.CRON_SECRET) {
+        console.error("⚠️ Unauthorized sync attempt!");
+        return res.status(401).json({ error: "Unauthorized: Invalid Secret Key" });
+    }
 
-    // بدلاً من setInterval، استدعي الدالة تاني بعد دقيقة
-    setTimeout(startSync, 60000);
-}
+    console.log("🔄 Manual Sync Triggered via API...");
 
-startSync(); // ابدأ أول مرة
+    try {
+        // تشغيل المزامنة للفروع بشكل تتابعي (Sequential) عشان نتجنب الـ Timeout
+        console.log("Starting Cairo Node Sync...");
+        await syncBranch(cairoDB, 1);
+        
+        console.log("Starting Alex Node Sync...");
+        await syncBranch(alexDB, 2);
+
+        res.status(200).json({ 
+            message: "Synchronization completed successfully",
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error("❌ Sync API Error:", err.message);
+        res.status(500).json({ error: "Sync failed", details: err.message });
+    }
+});
 
 app.listen(5000, () => console.log("🚀 SYSTEM ONLINE ON PORT 5000"));
